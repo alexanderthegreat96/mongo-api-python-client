@@ -28,7 +28,7 @@ To install MongoApiClient, you can use pip:
 Here's an example of how to use MongoApiClient to interact with MongoDB:
 
 ```python
-from MongoApiClient import MongoApiClient
+from mongo_api_client import MongoApiClient
 
 # Initialize MongoApiClient with connection details
 database = MongoApiClient(
