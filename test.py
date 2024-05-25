@@ -1,6 +1,6 @@
 from MongoApiClient import MongoApiClient
 
-database = MongoApiClient("192.168.1.69", 9875, "http")
+database = MongoApiClient("localhost", 9875, "http")
 
 # print(database
 #  .from_db("isac-division2-bot")

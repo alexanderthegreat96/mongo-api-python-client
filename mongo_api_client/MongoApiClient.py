@@ -38,12 +38,6 @@ class MongoApiClient:
 
         self.__sort_order = ["asc", "desc"]
 
-        """# It looks like the code you provided is a Python comment. Comments in Python start with a
-        # hash symbol (#) and are used to provide explanations or notes within the code. In this
-        # case, the comment appears to be a placeholder for a summary or description of the code
-        # that follows.
-        _summary_
-        """
     def __assemble_query(self):
         if len(self.__where_query) > 0:
             self.__query_params["query_and"] = "[" + "|".join(self.__where_query) + "]"
