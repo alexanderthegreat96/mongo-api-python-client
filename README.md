@@ -7,7 +7,7 @@ MongoApiClient is a Python library for interacting with MongoDB databases. It pr
 ## Installation
 
 To install MongoApiClient, you can use pip:
-```py -m pip install -r requirements.txt```
+```py -m pip install mongo-api-client```
 
 
 ## Building Queries
