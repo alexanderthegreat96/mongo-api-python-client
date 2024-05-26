@@ -1,4 +1,4 @@
-from MongoApiClient import MongoApiClient
+from mongo_api_client.MongoApiClient import MongoApiClient
 
 database = MongoApiClient("localhost", 9875, "http")
 
@@ -69,3 +69,17 @@ database = MongoApiClient("localhost", 9875, "http")
 #         "username" : "popeye1212"
 #     })
 # )
+
+#print(database.from_db('my-test-database').from_table('my-test-table').get().first())
+# print(database
+#       .from_db('isac-division2-bot')
+#       .from_table('account-versioning')
+#       .where('identifier', '=', '7e14ad6b-0264-4d2a-ab78-e57f008d9da1')
+#       .sort_by('created_at','desc')
+#       .get()
+#       .first())
+
+# print(database
+#       .from_db('isac-division2-bot')
+#       .from_table('account-versioning')
+#       .count())

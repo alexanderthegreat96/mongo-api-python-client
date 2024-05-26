@@ -37,6 +37,7 @@ class MongoApiClient:
         }
 
         self.__sort_order = ["asc", "desc"]
+        self.__query_results = None
 
     def __assemble_query(self):
         if len(self.__where_query) > 0:
@@ -353,9 +354,43 @@ class MongoApiClient:
             self.__sort_by_list.append(col_name + ":" + direction)
         return self
 
-    def select(self) -> dict:
+    def count(self):
+        if not self.__query_results:
+            results = self.select()
+            if not results['status']:
+                return {'status': False, 'error': results['error']}
+            return {'status': True, 'count': results['count']}
+            
+        return {'status': True, 'count': len(self.__query_results) if isinstance(self.__query_results, list) else self.__query_results['count']}
+        
+    def first(self):
+        if not self.__query_results:
+            return {'status': False, 'error': 'Query did not return any data. Are you sure you provided the .get() method before this?'}
+        
+        first_result = None
+        if isinstance(self.__query_results, list):
+            first_result = self.__query_results[0]
+        else:
+            first_result = self.__query_results['results'][0]
+        return {'status': True, 'result' : first_result}
+        
+    def find(self):
         self.__assemble_query()
         return self.__make_select_request()
+    
+    def find_by_id(self, mongo_id : str = None):
+        return self.select_by_id(mongo_id)
+    
+    def get(self):
+        self.__assemble_query()
+        results = self.__make_select_request()
+        if results['status']:
+            if results['count'] > 0:
+                self.__query_results = results
+        return self
+    
+    def select(self) -> dict:
+        return self.find()
 
     def select_by_id(self, mongo_id: str = None):
         return self.__make_select_by_id_request(mongo_id)

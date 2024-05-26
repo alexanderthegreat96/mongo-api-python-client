@@ -47,10 +47,48 @@ result = database\
     .per_page(2)\
     .page(1)\
     .sort_by("created_at","desc")\
-    .select()
+    .select() # or .find()
 
 print(result)
 ```
+### Retriving first result
+```python
+# Example: Perform a query
+result = database\
+    .from_db("isac-division2-bot")\
+    .from_table("account-versioning")\
+    .where("username", "like",  "paul")
+    .where("age", ">", 10)\
+    .sort_by("created_at","desc")\
+    .get()\
+    .first()
+print(result)
+```
+
+### Counting results
+```python
+# Example: Perform a query
+result = database\
+    .from_db("isac-division2-bot")\
+    .from_table("account-versioning")\
+    .where("username", "like",  "paul")
+    .where("age", ">", 10)\
+    .sort_by("created_at","desc")\
+    .count()
+print(result)
+```
+
+### Retriving data by ID
+```python
+# Example: Perform a query
+result = database\
+    .from_db("isac-division2-bot")\
+    .from_table("account-versioning")\
+    .select_by_id("your-mongo-id") # or find_by_id("your-mongo-id")
+
+print(result)
+```
+
 ### Inserting Data
 ```python
 # Example: Insert data into a table
