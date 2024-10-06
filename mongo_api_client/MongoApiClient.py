@@ -407,7 +407,7 @@ class MongoApiClient:
 
     def group_by(self, col_name: str = None):
         if col_name:
-            self.__group_by_string(col_name)
+            self.__group_by_string = col_name
 
         return self
 
