@@ -70,7 +70,7 @@ database = MongoApiClient("localhost", 9875, "http")
 #     })
 # )
 
-#print(database.from_db('my-test-database').from_table('my-test-table').get().first())
+# print(database.from_db('my-test-database').from_table('my-test-table').get().first())
 # print(database
 #       .from_db('isac-division2-bot')
 #       .from_table('account-versioning')

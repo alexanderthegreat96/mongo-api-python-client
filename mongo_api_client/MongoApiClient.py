@@ -3,16 +3,41 @@ import json
 from typing import Union
 
 
+def convert_col_value_for_arrays(data: any) -> str:
+    if isinstance(data, list) and len(data == 2):
+        first = data[0]
+        last = data[1]
+        return f"[{first}: {last}]"
+
+    return str(data)
+
+
+def merge_dicts(*arrays):
+    merged_dict = {}
+    for dictionary in arrays:
+        merged_dict.update(dictionary)
+    return merged_dict
+
+
 class MongoApiClient:
     """
-        Just the basic constructor containing various data 
-        contained across the application
+    Just the basic constructor containing various data
+    contained across the application
     """
+
     def __init__(
-        self, server_url: str = None, server_port: int = 0, scheme: str = "http"
+        self,
+        server_url: str = None,
+        server_port: int = 0,
+        scheme: str = "http",
+        api_key: str = None,
     ) -> None:
+        self.__global_headers = {"accept": "application/json", "api_key": api_key}
+
         self.__server_url = server_url
         self.__server_port = server_port
+        self.__api_key = api_key
+
         self.__api_url = scheme + "://" + server_url + ":" + str(server_port)
 
         self.__db_name = None
@@ -25,6 +50,7 @@ class MongoApiClient:
         self.__where_query = []
         self.__or_where_query = []
         self.__sort_by_list = []
+        self.__group_by_string = None
 
         self.__operator_map = {
             "=": "=",
@@ -33,7 +59,9 @@ class MongoApiClient:
             "<=": "<=",
             ">": ">",
             ">=": ">=",
-            "like": "_like_",
+            "like": "ilike",
+            "not_like": "not_like",
+            "between": "between",
         }
 
         self.__sort_order = ["asc", "desc"]
@@ -57,6 +85,9 @@ class MongoApiClient:
         if len(self.__sort_by_list) > 0:
             self.__query_params["sort"] = "[" + "|".join(self.__sort_by_list) + "]"
 
+        if self.__group_by_string:
+            self.__query_params["group_by"] = self.__group_by_string
+
     def __make_select_request(self) -> dict:
         request_url = (
             self.__api_url
@@ -66,7 +97,7 @@ class MongoApiClient:
             + self.__table_name
             + "/select"
         )
-        headers = {"accept": "application/json"}
+        headers = self.__global_headers
         try:
             response = requests.get(
                 request_url, params=self.__query_params, headers=headers, timeout=5
@@ -98,7 +129,10 @@ class MongoApiClient:
             response = requests.post(
                 request_url,
                 data=payload,
-                headers={"Content-Type": "application/x-www-form-urlencoded"},
+                headers=merge_dicts(
+                    self.__global_headers,
+                    {"Content-Type": "application/x-www-form-urlencoded"},
+                ),
                 timeout=5,
             )
 
@@ -130,7 +164,10 @@ class MongoApiClient:
                 request_url,
                 data=payload,
                 params=self.__query_params,
-                headers={"Content-Type": "application/x-www-form-urlencoded"},
+                headers=merge_dicts(
+                    self.__global_headers,
+                    {"Content-Type": "application/x-www-form-urlencoded"},
+                ),
                 timeout=5,
             )
 
@@ -156,7 +193,7 @@ class MongoApiClient:
             + "/get/"
             + mongo_id
         )
-        headers = {"accept": "application/json"}
+        headers = self.__global_headers
         try:
             response = requests.get(request_url, headers=headers, timeout=5)
             return response.json()
@@ -181,7 +218,7 @@ class MongoApiClient:
             + "/delete/"
             + mongo_id
         )
-        headers = {"accept": "application/json"}
+        headers = self.__global_headers
         try:
             response = requests.delete(request_url, headers=headers, timeout=5)
             return response.json()
@@ -212,7 +249,10 @@ class MongoApiClient:
                 request_url,
                 data=payload,
                 params=self.__query_params,
-                headers={"Content-Type": "application/x-www-form-urlencoded"},
+                headers=merge_dicts(
+                    self.__global_headers,
+                    {"Content-Type": "application/x-www-form-urlencoded"},
+                ),
                 timeout=5,
             )
 
@@ -246,7 +286,10 @@ class MongoApiClient:
             response = requests.put(
                 request_url,
                 data=payload,
-                headers={"Content-Type": "application/x-www-form-urlencoded"},
+                headers=merge_dicts(
+                    self.__global_headers,
+                    {"Content-Type": "application/x-www-form-urlencoded"},
+                ),
                 timeout=5,
             )
 
@@ -266,7 +309,7 @@ class MongoApiClient:
             + self.__table_name
             + "/delete-where"
         )
-        headers = {"accept": "application/json"}
+        headers = self.__global_headers
         try:
             response = requests.delete(
                 request_url, params=self.__query_params, headers=headers, timeout=5
@@ -280,7 +323,7 @@ class MongoApiClient:
 
     def list_databases(self) -> dict:
         request_url = self.__api_url + "/db/databases"
-        headers = {"accept": "application/json"}
+        headers = self.__global_headers
         try:
             response = requests.get(request_url, headers=headers, timeout=5)
             return response.json()
@@ -295,7 +338,7 @@ class MongoApiClient:
             return {"status": False, "error": "You did not provide a database name"}
 
         request_url = self.__api_url + "/db/" + db_name + "/tables"
-        headers = {"accept": "application/json"}
+        headers = self.__global_headers
         try:
             response = requests.get(request_url, headers=headers, timeout=5)
             return response.json()
@@ -328,14 +371,22 @@ class MongoApiClient:
     def where(self, col_name: str = None, operator: str = None, col_val: any = None):
         if operator in self.__operator_map:
             self.__where_query.append(
-                col_name + "," + self.__operator_map[operator] + "," + str(col_val)
+                col_name
+                + ","
+                + self.__operator_map[operator]
+                + ","
+                + convert_col_value_for_arrays(col_val)
             )
         return self
 
     def or_where(self, col_name: str = None, operator: str = None, col_val: any = None):
         if operator in self.__operator_map:
             self.__or_where_query.append(
-                col_name + "," + self.__operator_map[operator] + "," + str(col_val)
+                col_name
+                + ","
+                + self.__operator_map[operator]
+                + ","
+                + convert_col_value_for_arrays(col_val)
             )
         return self
 
@@ -354,41 +405,55 @@ class MongoApiClient:
             self.__sort_by_list.append(col_name + ":" + direction)
         return self
 
+    def group_by(self, col_name: str = None):
+        if col_name:
+            self.__group_by_string(col_name)
+
+        return self
+
     def count(self):
         if not self.__query_results:
             results = self.select()
-            if not results['status']:
-                return {'status': False, 'error': results['error']}
-            return {'status': True, 'count': results['count']}
-            
-        return {'status': True, 'count': len(self.__query_results) if isinstance(self.__query_results, list) else self.__query_results['count']}
-        
+            if not results["status"]:
+                return {"status": False, "error": results["error"]}
+            return {"status": True, "count": results["count"]}
+
+        return {
+            "status": True,
+            "count": len(self.__query_results)
+            if isinstance(self.__query_results, list)
+            else self.__query_results["count"],
+        }
+
     def first(self):
         if not self.__query_results:
-            return {'status': False, 'error': 'Query did not return any data. Are you sure you provided the .get() method before this?'}
-        
+            return {
+                "status": False,
+                "error": "Query did not return any data. Are you sure you provided the .get() method before this?",
+            }
+
         first_result = None
         if isinstance(self.__query_results, list):
             first_result = self.__query_results[0]
         else:
-            first_result = self.__query_results['results'][0]
-        return {'status': True, 'result' : first_result}
-        
+            first_result = self.__query_results["results"][0]
+        return {"status": True, "result": first_result}
+
     def find(self):
         self.__assemble_query()
         return self.__make_select_request()
-    
-    def find_by_id(self, mongo_id : str = None):
+
+    def find_by_id(self, mongo_id: str = None):
         return self.select_by_id(mongo_id)
-    
+
     def get(self):
         self.__assemble_query()
         results = self.__make_select_request()
-        if results['status']:
-            if results['count'] > 0:
+        if results["status"]:
+            if results["count"] > 0:
                 self.__query_results = results
         return self
-    
+
     def select(self) -> dict:
         return self.find()
 
@@ -404,11 +469,11 @@ class MongoApiClient:
 
     def insert(self, data: Union[dict, list] = None):
         return self.__make_insert_request(data)
-    
-    def insert_if(self, data : Union[dict, list]):
+
+    def insert_if(self, data: Union[dict, list]):
         self.__assemble_query()
         return self.__make_insert_if_request(data)
-    
+
     def delete(self):
         self.__assemble_query()
         return self.__make_delete_request()
@@ -421,7 +486,7 @@ class MongoApiClient:
             return {"status": False, "error": "You did not provide a database name"}
 
         request_url = self.__api_url + "/db/" + db_name + "/delete"
-        headers = {"accept": "application/json"}
+        headers = self.__global_headers
         try:
             response = requests.delete(request_url, headers=headers, timeout=5)
             return response.json()
@@ -439,7 +504,7 @@ class MongoApiClient:
             }
 
         request_url = self.__api_url + "/db/" + db_name + "/" + table_name + "/delete"
-        headers = {"accept": "application/json"}
+        headers = self.__global_headers
         try:
             response = requests.delete(request_url, headers=headers, timeout=5)
             return response.json()
