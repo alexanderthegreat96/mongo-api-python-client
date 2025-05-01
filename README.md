@@ -1,183 +1,275 @@
-# MongoApiClient Python Client
+## MongoApiClient Python Client
 
-## Description
+### Description
 
-MongoApiClient is a Python library for interacting with MongoDB databases. It provides an easy-to-use interface for performing various database operations.
+`MongoApiClient` is a Python library for interacting with a RESTful MongoDB API. It provides a fluent interface for building queries, performing CRUD operations, and running custom or aggregation pipelines. All responses are wrapped in a consistent `MongoApiReponse` envelope.
 
-## Installation
+---
 
-To install MongoApiClient, you can use pip:
-```py -m pip install mongo-api-client```
+### Installation
 
-
-## Building Queries
-- Building Queries
-- When building queries with MongoApiClient, you can use various operators and sorting options:
-## Operators: 
-- MongoApiClient supports the following operators:
-    - "=": Equal to
-    - "!=": Not equal to
-    - "<": Less than
-    - "<=": Less than or equal to
-    - ">": Greater than
-    - ">=": Greater than or equal to
-    - "like": Similar to (using the MongoDB $regex operator)
-- Sorting: You can specify the sorting order as "asc" (ascending) or  - "desc" (descending) using the sort_by() method.
-
-## Usage
-Here's an example of how to use MongoApiClient to interact with MongoDB:
-
-```python
-from mongo_api_client import MongoApiClient
-
-# Initialize MongoApiClient with connection details
-database = MongoApiClient(
-    server_ip= "your-server-ip", 
-    server_port=9875, 
-    scheme= "http")
-```
-### Retriving data
-```python
-# Example: Perform a query
-result = database\
-    .from_db("isac-division2-bot")\
-    .from_table("account-versioning")\
-    .where("username", "like",  "paul")
-    .where("age", ">", 10)
-    .per_page(2)\
-    .page(1)\
-    .sort_by("created_at","desc")\
-    .select() # or .find()
-
-print(result)
-```
-### Retriving first result
-```python
-# Example: Perform a query
-result = database\
-    .from_db("isac-division2-bot")\
-    .from_table("account-versioning")\
-    .where("username", "like",  "paul")
-    .where("age", ">", 10)\
-    .sort_by("created_at","desc")\
-    .get()\
-    .first()
-print(result)
+```bash
+pip install mongo-api-client
 ```
 
-### Counting results
+### Usage
 ```python
-# Example: Perform a query
-result = database\
-    .from_db("isac-division2-bot")\
-    .from_table("account-versioning")\
-    .where("username", "like",  "paul")
-    .where("age", ">", 10)\
-    .sort_by("created_at","desc")\
-    .count()
-print(result)
+from mongo_api_client import MongoApiClient, MongoApiReponse
 ```
 
-### Retriving data by ID
-```python
-# Example: Perform a query
-result = database\
-    .from_db("isac-division2-bot")\
-    .from_table("account-versioning")\
-    .select_by_id("your-mongo-id") # or find_by_id("your-mongo-id")
+---
 
-print(result)
+### Quick Start
+
+```python
+client = MongoApiClient(
+    server_url="localhost",
+    server_port=9776,
+    api_key="YOUR_API_KEY",  # optional
+)
 ```
 
-### Inserting Data
+### Under the Hood: Core Classes & Flow
+
+Every client operation ultimately returns a **`MongoApiReponse`** instance. Here’s how the classes collaborate:
+
+1. **Fluent Builder (`MongoApiClient`)**
+   - You chain methods (`where()`, `sort_by()`, `page()`, etc.) to construct query parameters.
+   - CRUD and utility methods (`find()`, `insert()`, `delete()`, etc.) trigger an HTTP call.
+
+2. **Request Execution**
+   - **`_request`** builds the final URL and headers, then calls **`_send_request`** (wrapped by `@retry`).
+   - On error, `_request` catches exceptions and returns a raw payload with `status=False`.
+
+3. **Response Wrapping**
+   - **`_wrap_response`** takes the raw `dict` payload and instantiates a **`MongoApiReponse`**, normalizing `status`, `code`, `data`, `error`, and utility fields (`databases`, `tables`, `message`).
+
+4. **Using `MongoApiReponse`**
+   - Once received, you simply call its accessor methods:
+     ```python
+     resp = client.find()
+     if resp.get_status():
+         data = resp.get_data()
+         print(data)
+     else:
+         print(f"Error {resp.get_status_code()}: {resp.get_error()}")
+     ```
+
+This separation of concerns ensures your calling code never deals with raw JSON or HTTP details—just fluent queries and wrapped responses.
+
 ```python
-# Example: Insert data into a table
-testData = [
-    {
-    'username' : 'hoewea2342we',
-    'age' : 21,
-    'occupations' : ['software engineer', 'musician']
-},
-    {
-    'username' : 'hoeweaasdeasdwe',
-    'age' : 44,
-    'occupations' : ['software engineer', 'musician']
-},
-    {
-    'username' : 'hoewea111we',
-    'age' : 23,
-    'occupations' : ['software engineer', 'musician']
-}
-]
-
-print(
-    database
-    .into_db('my-test-database')
-    .into_table('my-test-table-2')
-    .insert(testData)
-    )
-
-# Example: Insert data into a table if the condition 
-# is NOT MET
-print(
-    database
-    .into_db("my-test-database")
-    .into_table("my-test-table")
-    .where("username", "!=", "mathew")
-    .insert_if_not_exists(testData))
+# Example: find + response handling
+resp = (
+    client
+    .from_db("mydb")
+    .from_table("users")
+    .where("age", ">=", 21)
+    .find()
+)
+if resp.get_status():
+    print(resp.get_data())
+else:
+    print(resp.get_error())
 ```
-### Updating Data
-```python
-# Example: Update data based on conditions
-print(
-    database
-    .into_db("my-test-database")
-    .into_table("my-test-table")
-    .where("username", "=", "hoewea111we")
-    .update({"username": "alexanderdth123", "age": 99})
-    )
+# Behind the scenes:
+@retry(retries=3, backoff=0.5)
+def _send_request(...):
+    # HTTP call with requests.Session
 
-# Example: Update data by ID
-print(
-    database
-    .from_db("my-test-database")
-    .from_table("my-test-table")
-    .update_by_id("665103498e80ecc6f646d6c5", {"username" : "popeye1212"})
-    )
+# Then wrapped via _request → _wrap_response → MongoApiReponse
+```python
+client = MongoApiClient(
+    server_url="localhost",
+    server_port=9776,
+    api_key="YOUR_API_KEY",  # optional
+)
+
+# Simple find example
+resp = (
+    client
+    .from_db("mydb")
+    .from_table("users")
+    .where("age", ">=", 21)
+    .sort_by("name", "asc")
+    .page(1)
+    .per_page(10)
+    .find()
+)
+
+if resp.get_status():
+    for doc in resp.get_data():
+        print(doc)
+else:
+    print("Error:", resp.get_error())
 ```
 
-### Deleting Data
+---
+
+## 1. Building Queries
+
+Define your database and collection, then chain filters, sorting, grouping, and pagination.
+
 ```python
-# Example: Delete data from a table by ID
-print(
-    database
-    .from_db("my-test-database")
-    .from_table("my-test-table")
-    .delete_by_id("665104538e80ecc6f646d6cd")
-    )
+# Start with client, select DB and collection
+q = (
+    client
+    .from_db("mydb")             # select database
+    .from_table("people")         # select collection
+)
 
-# Example: Delete a database
-print(database.delete_database("alexanderdth"))
+# Add filters
+q = q.where("age", ">=", 18)    # AND filter
+q = q.or_where("status", "=", "inactive")  # OR filter
 
-# Example: Delete tables in a database
-print(database.delete_tables_in_db("my-test-database", "my-test-table-2"))
+# Sort and pagination
+q = q.sort_by("created_at", "desc")
+q = q.page(2).per_page(5)
 
-# Example: Delete data from a table based on conditions
-print(
-    database
-    .from_db("my-test-database")
-    .from_table("my-test-table")
-    .or_where("username", "=", "hoeweaasdeasdwe")
-    .or_where("age", "=", 21)
+# Optional grouping
+q = q.group_by("country")
+```
+
+## 2. Retrieving Data
+
+| Method            | Description                                 |
+| ----------------- | ------------------------------------------- |
+| `all()`           | Fetch all matching documents                |
+| `get_all()`       | Alias for `all()`                           |
+| `find()`          | Same as `all()`                             |
+| `first()`         | Fetch single document (page=1, per\_page=1) |
+| `one()`           | Alias for `first()`                         |
+| `first_or_none()` | Alias for `first()`                         |
+| `find_by_id(id)`  | Fetch a document by its `_id`               |
+
+```python
+# Fetch multiple\
+
+resp = q.find()
+# Instead of print(resp), use the response wrapper
+if resp.get_status():
+    data = resp.get_data()
+    print(f"Found {resp.get_total_count()} documents:", data)
+else:
+    print(f"Error {resp.get_status_code()}: {resp.get_error()}")
+```
+
+## 3. Inserting Data
+
+| Method            | Description                                 |
+| ----------------- | ------------------------------------------- |
+| `insert(docs)`    | Insert one or more documents                |
+| `insert_if(docs)` | Conditional insert if filters did not match |
+
+```python
+# Bulk insert
+docs = [{"name":"Alice"}, {"name":"Bob"}]
+resp = (
+    client
+    .into_db("mydb")
+    .into_table("people")
+    .insert(docs)
+)
+
+# Conditional insert
+resp = (
+    client
+    .from_db("mydb")
+    .from_table("people")
+    .where("name", "=", "Charlie")
+    .insert_if(docs)
+)
+```
+
+## 4. Updating Data
+
+| Method                   | Description                       |
+| ------------------------ | --------------------------------- |
+| `update(data)`           | Update documents matching filters |
+| `update_by_id(id, data)` | Update a single document by ID    |
+
+```python
+# Update matching docs
+resp = (
+    client
+    .from_db("mydb")
+    .from_table("people")
+    .where("name", "=", "Alice")
+    .update({"age":30})
+)
+
+# Update by ID
+resp = client.update_by_id(
+    "507f1f77bcf86cd799439011",
+    {"age":25}
+)
+```
+
+## 5. Deleting Data
+
+| Method             | Description                       |
+| ------------------ | --------------------------------- |
+| `delete()`         | Delete documents matching filters |
+| `delete_by_id(id)` | Delete a document by ID           |
+
+```python
+# Delete matching docs
+resp = (
+    client
+    .from_db("mydb")
+    .from_table("people")
+    .or_where("age", "<", 18)
     .delete()
-    )
+)
+# Check deletion result
+if resp.get_status():
+    print(f"Deleted {resp.get_total_count()} documents.")
+else:
+    print(f"Error {resp.get_status_code()}: {resp.get_error()}")
 ```
 
-### Other Operations
+## 6. Utilities: Databases & Tables
+
+| Method                  | Description                     |
+| ----------------------- | ------------------------------- |
+| `list_databases()`      | List all databases              |
+| `list_tables_in_db(db)` | List collections in a database  |
+| `delete_database(db)`   | Drop a database                 |
+| `delete_table(db, tbl)` | Drop a collection in a database |
 
 ```python
-# List tables in a database
-print(database.list_tables_in_db("my-db-name"))
-# List databases
-print(database.list_databases())
+# List
+resp = client.list_databases()
+resp = client.list_tables_in_db("mydb")
+
+# Drop
+resp = client.delete_database("old_db")
+resp = client.delete_table("mydb", "old_table")
 ```
+
+## 7. Custom Queries & Aggregation
+
+| Method                                   | Description                            |
+| ---------------------------------------- | -------------------------------------- |
+| `execute_custom_query(query, aggregate)` | Run raw filter or aggregation pipeline |
+
+```python
+# Simple filter via POST /custom-query
+resp = client.execute_custom_query(
+    custom_query={"stats.timePlayed": {"$gte": 10000}},
+    aggregate=False
+)
+
+# Aggregation pipeline
+pipeline = [
+    {"$match": {"stats.timePlayed": {"$gte": 10000}}},
+    {"$group": {"_id": "$country", "total": {"$sum": "$stats.timePlayed"}}},
+    {"$sort": {"total": -1}},
+    {"$limit": 5},
+]
+resp = client.execute_custom_query(pipeline, aggregate=True)
+```
+
+---
+
+*Generated by ChatGPT*
+
