@@ -1,10 +1,9 @@
-# from mongo_api_client.MongoApiClient import MongoApiClient, MongoApiReponse
-# from typing import Any, Dict, List
+from mongo_api_client.MongoApiClient import MongoApiClient, MongoApiResponse, MongoApiResponsePagination, MongoApiResponseData
 
 
-# server = MongoApiClient("localhost", 9777, "", "http")
+server = MongoApiClient("localhost", 9777, "", "http")
 
-# data : MongoApiReponse  = (
+# data : MongoApiResponse  = (
 #     server
 #     .use_db("isac-division2-api")
 #     .use_collection("stats_versioning")
@@ -13,12 +12,31 @@
 #     .sort_by("_id", "desc")
 #     .all()
 # )
+#
+# result : MongoApiResponseData = data.get_data()
+#
+# for item in result:
+#     print(item.get_records())
+#     print(item.get_inner_pagination().get_current_page())
 
-# print(data.get_data())
 
-# # query: List[Dict[str, Any]] = [
-# #     {"$match": {"stats.timePlayed": {"$gte": 10000}}},
-# # ]
+data : MongoApiResponse  = (
+    server
+    .use_db("isac-division2-api")
+    .use_collection("stats_versioning")
+    .where("stats.bodyshots", ">", 10000)
+    .sort_by("_id", "desc")
+    .all()
+)
+
+results : MongoApiResponseData = data.get_data()
+
+for item in results:
+    print(item.get_data())
+
+# query: List[Dict[str, Any]] = [
+#     {"$match": {"stats.timePlayed": {"$gte": 10000}}},
+# ]
 
 
 # # data : MongoApiReponse  = (
