@@ -1,265 +1,293 @@
-## MongoApiClient Python Client
+# MongoDB API Client
 
-### Description
+A Python client library for interacting with a MongoDB RESTful API, providing a fluent interface for building queries and performing CRUD operations with robust response handling.
 
-`MongoApiClient` is a Python library for interacting with a RESTful MongoDB API. It provides a fluent interface for building queries, performing CRUD operations, and running custom or aggregation pipelines. All responses are wrapped in a consistent `MongoApiReponse` envelope.
+## Overview
 
----
+The `MongoApiClient` class enables seamless interaction with a MongoDB API server, supporting operations like selecting, inserting, updating, and deleting documents. Key features include:
 
-### Installation
+- **Fluent Query Building**: Chain methods like `where`, `or_where`, `sort_by`, `group_by` for complex queries.
+- **Query Aliases**: Use `select`, `all`, `get`, `get_all` for `find()`, and `first_or_none`, `one` for `first()`.
+- **Auto-Conversion Control**: Toggle type conversion for query values using `auto_convert_type` in `where`/`or_where`.
+- **Grouped Data Handling**: Process grouped query results with `MongoApiResponseData`, including inner pagination and records.
+- **Pagination Support**: Handle pagination metadata via `MongoApiResponsePagination`.
+- **Retry Mechanism**: Automatically retry failed requests with configurable backoff.
+- **Response Wrapping**: Normalize API responses into a consistent `MongoApiResponse` envelope.
+
+## Installation
+
+Install the package using pip:
 
 ```bash
 pip install mongo-api-client
 ```
 
-### Usage
+Ensure Python 3.7+ and the `requests` library are installed (included as a dependency).
+
+## Usage
+
+### Initializing the Client
+
+Create a `MongoApiClient` instance with your API server details:
+
 ```python
-from mongo_api_client import MongoApiClient, MongoApiReponse
-```
+from mongo_api_client import MongoApiClient
 
----
-
-### Quick Start
-
-```python
 client = MongoApiClient(
-    server_url="localhost",
-    server_port=9776,
-    api_key="YOUR_API_KEY",  # optional
+    server_url="api.example.com",
+    server_port=80,
+    api_key="your-api-key",
+    scheme="https",
+    auto_convert_values=True,
+    timeout=10.0
 )
 ```
 
-### Under the Hood: Core Classes & Flow
+### Select Queries
 
-Every client operation ultimately returns a **`MongoApiReponse`** instance. Here’s how the classes collaborate:
+The library provides a powerful fluent interface for select queries, with multiple aliases for convenience. Below are examples highlighting `group_by`, `auto_convert_type`, aliases, and grouped result handling.
 
-1. **Fluent Builder (`MongoApiClient`)**
-   - You chain methods (`where()`, `sort_by()`, `page()`, etc.) to construct query parameters.
-   - CRUD and utility methods (`find()`, `insert()`, `delete()`, etc.) trigger an HTTP call.
+#### Basic Select Query with Aliases
 
-2. **Request Execution**
-   - **`_request`** builds the final URL and headers, then calls **`_send_request`** (wrapped by `@retry`).
-   - On error, `_request` catches exceptions and returns a raw payload with `status=False`.
-
-3. **Response Wrapping**
-   - **`_wrap_response`** takes the raw `dict` payload and instantiates a **`MongoApiReponse`**, normalizing `status`, `code`, `data`, `error`, and utility fields (`databases`, `tables`, `message`).
-
-4. **Using `MongoApiReponse`**
-   - Once received, you simply call its accessor methods:
-     ```python
-     resp = client.find()
-     if resp.get_status():
-         data = resp.get_data()
-         print(data)
-     else:
-         print(f"Error {resp.get_status_code()}: {resp.get_error()}")
-     ```
-
-This separation of concerns ensures your calling code never deals with raw JSON or HTTP details—just fluent queries and wrapped responses.
+Fetch documents using `find()` or its aliases (`select`, `all`, `get`, `get_all`):
 
 ```python
-# Example: find + response handling
-resp = (
-    client
-    .from_db("mydb")
+# Using `select` alias
+response = (client
+    .from_db("my_database")
     .from_table("users")
-    .where("age", ">=", 21)
-    .find()
-)
-if resp.get_status():
-    print(resp.get_data())
-else:
-    print(resp.get_error())
-```
-### Example Retriving and processing results
-```python
-client = MongoApiClient(
-    server_url="localhost",
-    server_port=9776,
-    api_key="YOUR_API_KEY",  # optional
-)
-
-# Simple find example
-resp = (
-    client
-    .from_db("mydb")
-    .from_table("users")
-    .where("age", ">=", 21)
+    .where("age", ">=", 18, auto_convert_type=True)
     .sort_by("name", "asc")
     .page(1)
+    .per_page(20)
+    .select())  # or .all(), .get(), .get_all()
+
+if response.get_status():
+    data = response.get_data()
+    for doc in data:
+        print(doc.get_data())
+else:
+    print(f"Error: {response.get_error()}")
+```
+
+The `auto_convert_type=True` ensures the `age` value is tagged for automatic type conversion (e.g., `18/a` in the query string).
+
+#### Fetching a Single Document with Aliases
+
+Use `first()` or its aliases (`first_or_none`, `one`) to retrieve the first matching document:
+
+```python
+# Using `one` alias
+response = (client
+    .from_db("my_database")
+    .from_table("users")
+    .where("name", "=", "John Doe", auto_convert_type=False)
+    .one())  # or .first_or_none()
+
+if response.get_status():
+    data = response.get_data()
+    print(data.get_data() if data else "No document found")
+else:
+    print(f"Error: {response.get_error()}")
+```
+
+#### Using `or_where` with `auto_convert_type`
+
+Combine `where` and `or_where` with type conversion control:
+
+```python
+response = (client
+    .from_db("my_database")
+    .from_table("users")
+    .where("age", ">=", 18, auto_convert_type=True)
+    .or_where("status", "=", "active", auto_convert_type=False)
     .per_page(10)
-    .find()
-)
+    .get())  # Alias for find()
 
-if resp.get_status():
-    for doc in resp.get_data():
-        print(doc)
+if response.get_status():
+    data = response.get_data()
+    print(f"Found {len(data)} users:")
+    for doc in data:
+        print(doc.get_data())
 else:
-    print("Error:", resp.get_error())
+    print(f"Error: {response.get_error()}")
 ```
 
----
+Here, `age` is tagged for conversion (`18/a`), while `status` is not (`active/n`), preserving the string value.
 
-## 1. Building Queries
+#### Grouped Queries with `group_by`
 
-Define your database and collection, then chain filters, sorting, grouping, and pagination.
-
-```python
-# Start with client, select DB and collection
-q = (
-    client
-    .from_db("mydb")             # select database
-    .from_table("people")         # select collection
-)
-
-# Add filters
-q = q.where("age", ">=", 18)    # AND filter
-q = q.or_where("status", "=", "inactive")  # OR filter
-
-# Sort and pagination
-q = q.sort_by("created_at", "desc")
-q = q.page(2).per_page(5)
-
-# Optional grouping
-q = q.group_by("country")
-```
-
-## 2. Retrieving Data
-
-| Method            | Description                                 |
-| ----------------- | ------------------------------------------- |
-| `all()`           | Fetch all matching documents                |
-| `get_all()`       | Alias for `all()`                           |
-| `find()`          | Same as `all()`                             |
-| `first()`         | Fetch single document (page=1, per\_page=1) |
-| `one()`           | Alias for `first()`                         |
-| `first_or_none()` | Alias for `first()`                         |
-| `find_by_id(id)`  | Fetch a document by its `_id`               |
+Group results by a field (e.g., `city`) and handle inner pagination and records:
 
 ```python
-# Fetch multiple\
+response = (client
+    .from_db("my_database")
+    .from_table("users")
+    .where("age", ">=", 18, auto_convert_type=True)
+    .group_by("city")
+    .inner_page(1)
+    .inner_per_page(5)
+    .all())  # Alias for find()
 
-resp = q.find()
-# Instead of print(resp), use the response wrapper
-if resp.get_status():
-    data = resp.get_data()
-    print(f"Found {resp.get_total_count()} documents:", data)
+if response.get_status():
+    data = response.get_data()
+    if data.has_grouped():
+        for group in data:
+            inner_pagination = group.get_inner_pagination()
+            records = group.get_records()
+            total_records = group.get_total_records()
+            print(f"Group: {group.get_data().get('city')}")
+            print(f"Total Records: {total_records}")
+            print(f"Page {inner_pagination.get_current_page()}/{inner_pagination.get_total_pages()}")
+            for record in records:
+                print(f" - {record}")
+    else:
+        print("No grouped data found")
 else:
-    print(f"Error {resp.get_status_code()}: {resp.get_error()}")
+    print(f"Error: {response.get_error()}")
 ```
 
-## 3. Inserting Data
+The `MongoApiResponseData` class processes grouped results, providing:
 
-| Method            | Description                                 |
-| ----------------- | ------------------------------------------- |
-| `insert(docs)`    | Insert one or more documents                |
-| `insert_if(docs)` | Conditional insert if filters did not match |
+- `get_inner_pagination()`: A `MongoApiResponsePagination` object for inner pagination metadata (e.g., `current_page`, `total_pages`).
+- `get_records()`: The list of records in the group.
+- `get_total_records()`: The total count of records in the group.
 
-```python
-# Bulk insert
-docs = [{"name":"Alice"}, {"name":"Bob"}]
-resp = (
-    client
-    .into_db("mydb")
-    .into_table("people")
-    .insert(docs)
-)
+Use `inner_page` and `inner_per_page` to control pagination within groups.
 
-# Conditional insert
-resp = (
-    client
-    .from_db("mydb")
-    .from_table("people")
-    .where("name", "=", "Charlie")
-    .insert_if(docs)
-)
-```
+#### Pagination Handling
 
-## 4. Updating Data
-
-| Method                   | Description                       |
-| ------------------------ | --------------------------------- |
-| `update(data)`           | Update documents matching filters |
-| `update_by_id(id, data)` | Update a single document by ID    |
+Access pagination metadata for non-grouped or grouped queries:
 
 ```python
-# Update matching docs
-resp = (
-    client
-    .from_db("mydb")
-    .from_table("people")
-    .where("name", "=", "Alice")
-    .update({"age":30})
-)
+response = (client
+    .from_db("my_database")
+    .from_table("users")
+    .page(2)
+    .per_page(15)
+    .get_all())  # Alias for find()
 
-# Update by ID
-resp = client.update_by_id(
-    "507f1f77bcf86cd799439011",
-    {"age":25}
-)
-```
-
-## 5. Deleting Data
-
-| Method             | Description                       |
-| ------------------ | --------------------------------- |
-| `delete()`         | Delete documents matching filters |
-| `delete_by_id(id)` | Delete a document by ID           |
-
-```python
-# Delete matching docs
-resp = (
-    client
-    .from_db("mydb")
-    .from_table("people")
-    .or_where("age", "<", 18)
-    .delete()
-)
-# Check deletion result
-if resp.get_status():
-    print(f"Deleted {resp.get_total_count()} documents.")
+if response.get_status():
+    pagination = response.get_pagination()
+    print(f"Page {pagination.get_current_page()}/{pagination.get_total_pages()}")
+    print(f"Items per page: {pagination.get_per_page()}")
+    data = response.get_data()
+    for doc in data:
+        print(doc.get_data())
 else:
-    print(f"Error {resp.get_status_code()}: {resp.get_error()}")
+    print(f"Error: {response.get_error()}")
 ```
 
-## 6. Utilities: Databases & Tables
+For grouped queries, use `get_inner_pagination()` on `MongoApiResponseData` for per-group pagination, as shown in the `group_by` example.
 
-| Method                  | Description                     |
-| ----------------------- | ------------------------------- |
-| `list_databases()`      | List all databases              |
-| `list_tables_in_db(db)` | List collections in a database  |
-| `delete_database(db)`   | Drop a database                 |
-| `delete_table(db, tbl)` | Drop a collection in a database |
+#### Custom Select Queries
+
+Execute custom MongoDB queries or aggregations:
 
 ```python
-# List
-resp = client.list_databases()
-resp = client.list_tables_in_db("mydb")
+# Custom query
+custom_query = {"stats.timePlayed": {"$gte": 10000}}
+response = (client
+    .from_db("my_database")
+    .from_table("users")
+    .execute_custom_query(custom_query))
 
-# Drop
-resp = client.delete_database("old_db")
-resp = client.delete_table("mydb", "old_table")
+# Aggregation query
+aggregate_query = [{"$match": {"stats.timePlayed": {"$gte": 10000}}}]
+response = (client
+    .from_db("my_database")
+    .from_table("users")
+    .execute_custom_query(aggregate_query, aggregate=True))
+
+if response.get_status():
+    data = response.get_data()
+    for doc in data:
+        print(doc.get_data())
+else:
+    print(f"Error: {response.get_error()}")
 ```
 
-## 7. Custom Queries & Aggregation
+### Other CRUD Operations
 
-| Method                                   | Description                            |
-| ---------------------------------------- | -------------------------------------- |
-| `execute_custom_query(query, aggregate)` | Run raw filter or aggregation pipeline |
+#### Inserting Data
 
 ```python
-# Simple filter via POST /custom-query
-resp = client.execute_custom_query(
-    custom_query={"stats.timePlayed": {"$gte": 10000}},
-    aggregate=False
-)
-
-# Aggregation pipeline
-pipeline = [
-    {"$match": {"stats.timePlayed": {"$gte": 10000}}},
-    {"$group": {"_id": "$country", "total": {"$sum": "$stats.timePlayed"}}},
-    {"$sort": {"total": -1}},
-    {"$limit": 5},
-]
-resp = client.execute_custom_query(pipeline, aggregate=True)
+payload = {"name": "John Doe", "age": 30}
+response = client.from_db("my_database").from_table("users").insert(payload)
 ```
+
+#### Updating Data
+
+```python
+payload = {"age": 31}
+response = (client
+    .from_db("my_database")
+    .from_table("users")
+    .where("name", "=", "John Doe", auto_convert_type=False)
+    .update(payload))
+```
+
+#### Deleting Data
+
+```python
+response = (client
+    .from_db("my_database")
+    .from_table("users")
+    .where("age", "<", 18, auto_convert_type=True)
+    .delete())
+```
+
+### Utility Methods
+
+List databases or tables:
+
+```python
+db_response = client.list_databases()
+print(db_response.get_databases())
+
+table_response = client.list_tables_in_db("my_database")
+print(table_response.get_tables())
+```
+
+Drop databases or collections:
+
+```python
+response = client.drop_database("my_database")
+response = client.drop_collection("my_database", "users")
+```
+
+## Features
+
+- **Fluent Select Queries**: Chain `where`, `or_where`, `group_by`, `sort_by`, with aliases (`select`, `all`, `get`, `get_all`, `first_or_none`, `one`) and `auto_convert_type` control.
+- **Grouped Data Processing**: `MongoApiResponseData` provides `inner_pagination`, `records`, and `total_records` for grouped results.
+- **Pagination Support**: `MongoApiResponsePagination` simplifies navigation of paged and inner-paged results.
+- **Retry Decorator**: Handles transient network failures with exponential backoff.
+- **Type Safety**: Uses Python type hints for better IDE support.
+- **Flexible Querying**: Supports operators (`=`, `!=`, `<`, `>`, `like`, etc.) and custom MongoDB queries.
+
+## Error Handling
+
+Responses are wrapped in `MongoApiResponse`, providing:
+
+- `status`: Success or failure.
+- `error`: Error message if failed.
+- `code`: Status code.
+- `data`: Documents or grouped data.
+
+```python
+response = client.from_db("my_database").from_table("users").select()
+if not response.get_status():
+    print(f"Request failed with code {response.get_status_code()}: {response.get_error()}")
+```
+
+## Contributing
+
+1. Fork the repository.
+2. Create a feature branch (`git checkout -b feature/YourFeature`).
+3. Commit changes (`git commit -m 'Add YourFeature'`).
+4. Push to the branch (`git push origin feature/YourFeature`).
+5. Open a pull request.
+
+## License
+
+This project is licensed under the MIT License. See the `LICENSE` file for details.
