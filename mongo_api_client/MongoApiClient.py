@@ -290,6 +290,22 @@ class MongoApiResponseData:
             item.get("records") if isinstance(item, dict) and self._is_grouped(item) else None
             for item in self._payload
         ]
+    
+    def get_record_id(self) -> any:
+        """
+        Retrieve the record id / criteria on which it was grouped on
+
+        Returns:
+            any: Can return any type
+        """
+        if not self.has_grouped():
+            return None
+        if isinstance(self._payload, dict):
+            return self._payload.get("_id")
+        return [
+            item.get("_id") if isinstance(item, dict) and self._is_grouped(item) else None
+            for item in self._payload
+        ]
 
     def get_total_records(
         self

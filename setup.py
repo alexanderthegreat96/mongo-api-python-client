@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="mongo-api-client",
-    version="0.8",
+    version="0.9",
     packages=find_packages(),
     install_requires=["requests"],
     author="alexanderthegreat96",

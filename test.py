@@ -1,17 +1,20 @@
 from mongo_api_client.MongoApiClient import MongoApiClient, MongoApiResponse, MongoApiResponsePagination, MongoApiResponseData
 
 
-server = MongoApiClient("localhost", 9777, "", "http")
+server = MongoApiClient("", 9874, "", "http")
 
-# data : MongoApiResponse  = (
-#     server
-#     .use_db("isac-division2-api")
-#     .use_collection("stats_versioning")
-#     .where("identifier", "=", "22edd328-96ff-4831-bc73-723e91b5f29d")
-#     .group_by("stats.burningKills")
-#     .sort_by("_id", "desc")
-#     .all()
-# )
+data : MongoApiResponse  = (
+    server
+    .use_db("isac-division2-api")
+    .use_collection("stats_versioning")
+    .where("identifier", "=", "5f4ab63c-b484-44e4-b05c-851dc7ff4268")
+    .sort_by("_id", "desc")
+    .page(1)
+    .per_page(1)
+    .first()
+)
+
+print(data.get_data().get_data())
 #
 # result : MongoApiResponseData = data.get_data()
 #
@@ -20,19 +23,19 @@ server = MongoApiClient("localhost", 9777, "", "http")
 #     print(item.get_inner_pagination().get_current_page())
 
 
-data : MongoApiResponse  = (
-    server
-    .use_db("isac-division2-api")
-    .use_collection("stats_versioning")
-    .where("stats.bodyshots", ">", 10000)
-    .sort_by("_id", "desc")
-    .all()
-)
+# data : MongoApiResponse  = (
+#     server
+#     .use_db("isac-division2-api")
+#     .use_collection("stats_versioning")
+#     .where("stats.bodyshots", ">", 10000)
+#     .sort_by("_id", "desc")
+#     .all()
+# )
 
-results : MongoApiResponseData = data.get_data()
+# results : MongoApiResponseData = data.get_data()
 
-for item in results:
-    print(item.get_data())
+# for item in results:
+#     print(item.get_data())
 
 # query: List[Dict[str, Any]] = [
 #     {"$match": {"stats.timePlayed": {"$gte": 10000}}},
